@@ -1,20 +1,12 @@
-import { pipeline, env } from '@xenova/transformers'
+import { GoogleGenerativeAI } from '@google/generative-ai'
 
-env.allowLocalModels = false
-env.useBrowserCache = false
-
-type EmbeddingPipeline = Awaited<ReturnType<typeof pipeline>>
-let extractor: EmbeddingPipeline | null = null
-
-async function getExtractor(): Promise<EmbeddingPipeline> {
-  if (!extractor) {
-    extractor = await pipeline('feature-extraction', 'Xenova/multilingual-e5-small')
-  }
-  return extractor
-}
+const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!)
+const embeddingModel = genAI.getGenerativeModel(
+  { model: 'gemini-embedding-001' },
+  { apiVersion: 'v1' }
+)
 
 export async function embed(text: string): Promise<number[]> {
-  const pipe = await getExtractor()
-  const output = await pipe(text, { pooling: 'mean', normalize: true } as any)
-  return Array.from((output as any).data) as number[]
+  const result = await embeddingModel.embedContent(text)
+  return result.embedding.values
 }

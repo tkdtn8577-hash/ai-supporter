@@ -72,6 +72,7 @@ export default function ChatInterface({ conversationId, onConversationCreated, o
       .eq('conversation_id', convId)
       .order('created_at', { ascending: true })
     if (data) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       setMessages(data.map((m: any) => ({ ...m, createdAt: new Date(m.created_at) })) as Message[])
     }
   }

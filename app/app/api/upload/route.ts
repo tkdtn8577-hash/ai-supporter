@@ -27,6 +27,7 @@ async function parseFile(file: File): Promise<string> {
   }
   if (ext === 'pdf') {
     const pdfMod = await import('pdf-parse')
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const pdfParse = (pdfMod as any).default ?? pdfMod
     const data = await pdfParse(buffer)
     return data.text
@@ -77,7 +78,7 @@ export async function POST(req: NextRequest) {
     const batch = chunks.slice(i, i + batchSize)
     const rows = await Promise.all(
       batch.map(async (content, j) => {
-        const embedding = await embed(`passage: ${content}`)
+        const embedding = await embed(content)
         return { document_id: doc.id, content, embedding, chunk_index: i + j }
       })
     )

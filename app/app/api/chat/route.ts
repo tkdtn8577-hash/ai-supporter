@@ -17,13 +17,14 @@ export async function POST(req: NextRequest) {
     // 관련 문서 청크 검색
     let context = ''
     try {
-      const queryEmb = await embed(`query: ${question}`)
+      const queryEmb = await embed(question)
       const { data: chunks, error: rpcError } = await supabase.rpc('match_document_chunks', {
         query_embedding: queryEmb,
         match_count: 5,
       })
       if (rpcError) throw new Error(`DB 오류: ${rpcError.message}`)
       console.log('[chunks]', chunks?.length, chunks?.[0]?.content?.slice(0, 50))
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       context = (chunks as any[])?.map((c) => c.content).join('\n\n') || ''
     } catch (embErr) {
       console.error('[embed/search error]', embErr)

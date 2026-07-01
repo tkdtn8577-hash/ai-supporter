@@ -1,15 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   experimental: {
-    serverComponentsExternalPackages: ['@xenova/transformers', 'pdf-parse', 'mammoth', 'xlsx'],
-  },
-  webpack: (config) => {
-    config.resolve.alias = {
-      ...config.resolve.alias,
-      'sharp$': false,
-      'onnxruntime-node$': false,
-    }
-    return config
+    serverComponentsExternalPackages: ['pdf-parse', 'mammoth', 'xlsx'],
   },
 }
 
