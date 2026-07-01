@@ -24,16 +24,19 @@
 - **Project ID:** `ypmnhjtevocbmwejpeeb`
 - **URL:** `https://ypmnhjtevocbmwejpeeb.supabase.co`
 - **Region:** ap-northeast-1 (Tokyo)
-- **마이그레이션:** `supabase/migrations/20260630000000_init.sql` 적용 완료
+- **마이그레이션 적용 완료:**
+  - `20260630000000_init.sql` — 초기 스키마
+  - `20260701000000_fix_vector_search.sql` — HNSW 인덱스 교체 + 함수 재생성
 
 ### DB 스키마 (적용 완료)
 ```sql
 -- pgvector 확장
 -- documents: 파일 메타데이터
 -- document_chunks: 텍스트 청크 + vector(384) 임베딩
+--   인덱스: HNSW (vector_cosine_ops) — IVFflat은 소규모 데이터에서 검색 실패하여 교체
 -- conversations: 대화 세션
 -- messages: 개별 메시지 (role: user | assistant)
--- match_document_chunks(): 벡터 유사도 검색 함수 (cosine)
+-- match_document_chunks(): 벡터 유사도 검색 함수 (cosine, top-N)
 ```
 
 ### 환경 변수 (`app/.env.local`)
@@ -55,7 +58,7 @@ ai_supporter/
 │       └── 20260630000000_init.sql
 └── app/                        # Next.js 앱 루트
     ├── .env.local              # 환경 변수 (gitignore)
-    ├── next.config.mjs         # webpack + serverExternalPackages 설정
+    ├── next.config.mjs         # webpack + experimental.serverComponentsExternalPackages 설정
     ├── lib/
     │   ├── supabase.ts         # Supabase 클라이언트 싱글톤
     │   └── embeddings.ts       # transformers.js 임베딩 (서버 전용)
@@ -80,9 +83,12 @@ ai_supporter/
 ### 채팅 흐름
 1. 사용자 질문 입력
 2. 클라이언트: Supabase에 conversations + user message 저장
-3. `POST /api/chat` 호출 → 서버에서 질문 임베딩 → pgvector 검색 (Top 5 청크) → Gemini에 컨텍스트 포함 프롬프트 전송
-4. 스트리밍 응답을 클라이언트에서 실시간 표시
-5. 클라이언트: Supabase에 assistant message 저장
+3. `POST /api/chat` 호출 — `{ question, history[] }` 전송
+4. 서버: 질문 임베딩 → HNSW 벡터 검색 (Top 5 청크) → Gemini `startChat(history)` + `sendMessageStream(question)`
+5. 스트리밍 응답을 클라이언트에서 실시간 표시 (타이핑 애니메이션 → 텍스트 점진적 렌더링)
+6. 클라이언트: Supabase에 assistant message 저장
+
+**멀티턴 대화:** 이전 메시지 전체를 `history` 배열로 서버에 전달 → Gemini가 맥락을 유지하며 답변
 
 ### 파일 업로드 흐름
 1. 사용자가 파일 선택 (드래그&드롭 또는 클릭)
@@ -121,9 +127,11 @@ npx supabase db push   # 마이그레이션 적용
 | 벡터 임베딩 + Supabase 저장 | F1 | ✅ |
 | 동일 파일 재업로드 시 덮어쓰기 | F1 | ✅ |
 | 자연어 채팅 (Gemini 스트리밍) | F2 | ✅ |
+| 멀티턴 대화 히스토리 (맥락 유지) | F2 | ✅ |
 | RAG (pgvector 검색 → AI 컨텍스트) | F2 | ✅ |
 | 빠른 질문 버튼 4개 | F2 | ✅ |
 | 마크다운 렌더링 | F2 | ✅ |
+| 채팅 UI 개선 (아바타, 타이핑 애니메이션, 시간 표시) | F2 | ✅ |
 | 대화 기록 자동 저장 | F3 | ✅ |
 | 대화 목록 사이드바 | F3 | ✅ |
 | 대화 삭제 | F3 | ✅ |
@@ -146,3 +154,5 @@ npx supabase db push   # 마이그레이션 적용
 - Gemini API 키(`GOOGLE_API_KEY`)는 `.env.local`에만 있고 클라이언트에 노출되지 않음
 - Supabase anon 키는 `NEXT_PUBLIC_` 접두사로 클라이언트에 노출 (RLS 미사용, 1인 전용 앱)
 - `supabase/migrations/` 폴더는 `app/supabase/migrations/`에도 복사본 존재 (CLI 경로 이슈로 중복)
+- IVFflat 인덱스는 데이터가 `lists × 39`행 미만이면 검색 실패 → HNSW로 교체 완료
+- Gemini 모델: `gemini-2.5-flash` 사용 (`gemini-1.5-flash`는 이 API 키 미지원, `gemini-2.0-flash`는 무료 할당량 0)
