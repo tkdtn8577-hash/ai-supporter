@@ -79,6 +79,7 @@ export default function Home() {
           <ChatInterface
             conversationId={conversationId}
             onConversationCreated={(id) => setConversationId(id)}
+            onOpenUpload={() => setShowUpload(true)}
           />
         </div>
       </div>

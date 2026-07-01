@@ -5,37 +5,78 @@ import { embed } from '@/lib/embeddings'
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!)
 
+interface HistoryItem {
+  role: 'user' | 'assistant'
+  content: string
+}
+
 export async function POST(req: NextRequest) {
-  const { question } = await req.json()
+  try {
+    const { question, history = [] }: { question: string; history: HistoryItem[] } = await req.json()
 
-  // 관련 청크 검색
-  const queryEmb = await embed(`query: ${question}`)
-  const { data: chunks } = await supabase.rpc('match_document_chunks', {
-    query_embedding: queryEmb,
-    match_count: 5,
-  })
+    // 관련 문서 청크 검색
+    let context = ''
+    try {
+      const queryEmb = await embed(`query: ${question}`)
+      const { data: chunks, error: rpcError } = await supabase.rpc('match_document_chunks', {
+        query_embedding: queryEmb,
+        match_count: 5,
+      })
+      if (rpcError) throw new Error(`DB 오류: ${rpcError.message}`)
+      console.log('[chunks]', chunks?.length, chunks?.[0]?.content?.slice(0, 50))
+      context = (chunks as any[])?.map((c) => c.content).join('\n\n') || ''
+    } catch (embErr) {
+      console.error('[embed/search error]', embErr)
+      const encoder = new TextEncoder()
+      const errMsg = `⚠️ 문서 검색 중 시스템 오류가 발생했습니다.\n\n**오류 내용**: ${String(embErr)}\n\n잠시 후 다시 시도해 주세요.`
+      return new Response(
+        new ReadableStream({
+          start(controller) {
+            controller.enqueue(encoder.encode(errMsg))
+            controller.close()
+          },
+        }),
+        { headers: { 'Content-Type': 'text/plain; charset=utf-8' } }
+      )
+    }
 
-  const context = (chunks as any[])?.map((c) => c.content).join('\n\n') || ''
+    const systemInstruction = context
+      ? `당신은 테크솔루션즈의 친근한 사내 AI 비서 ARIA입니다. 자연스럽게 대화하며, 아래 회사 문서를 참고해 한국어로 답변하세요. 문서에 없는 내용은 솔직하게 모른다고 말하고, 일반적인 질문에는 자유롭게 대화하세요.\n\n[참고 문서]\n${context}`
+      : `당신은 테크솔루션즈의 친근한 사내 AI 비서 ARIA입니다. 자연스럽게 대화하세요. 문서 관련 질문이 들어오면 "아직 등록된 문서가 없어요. 왼쪽 메뉴에서 문서를 업로드해 주시면 도와드릴게요!"라고 안내하세요.`
 
-  const prompt = context
-    ? `당신은 테크솔루션즈의 사내 AI 비서입니다. 아래 회사 문서를 바탕으로 한국어로 간결하게 답변하세요. 문서에 없는 내용은 "해당 내용은 등록된 문서에서 찾을 수 없습니다"라고 답하세요.\n\n[회사 문서]\n${context}\n\n[질문]\n${question}`
-    : `당신은 테크솔루션즈의 사내 AI 비서입니다. 현재 등록된 문서가 없습니다. "해당 내용은 등록된 문서에서 찾을 수 없습니다. 먼저 문서를 업로드해 주세요."라고 답하세요.`
+    const model = genAI.getGenerativeModel({
+      model: 'gemini-2.5-flash',
+      systemInstruction,
+    })
 
-  const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash-lite' })
-  const result = await model.generateContentStream(prompt)
+    // 이전 대화 히스토리 변환 (Gemini 형식)
+    const chatHistory = history.slice(0, -1).map((msg) => ({
+      role: msg.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: msg.content }],
+    }))
 
-  const encoder = new TextEncoder()
-  const stream = new ReadableStream({
-    async start(controller) {
-      for await (const chunk of result.stream) {
-        const text = chunk.text()
-        if (text) controller.enqueue(encoder.encode(text))
-      }
-      controller.close()
-    },
-  })
+    const chat = model.startChat({ history: chatHistory })
+    const result = await chat.sendMessageStream(question)
 
-  return new Response(stream, {
-    headers: { 'Content-Type': 'text/plain; charset=utf-8' },
-  })
+    const encoder = new TextEncoder()
+    const stream = new ReadableStream({
+      async start(controller) {
+        for await (const chunk of result.stream) {
+          const text = chunk.text()
+          if (text) controller.enqueue(encoder.encode(text))
+        }
+        controller.close()
+      },
+    })
+
+    return new Response(stream, {
+      headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+    })
+  } catch (err) {
+    console.error('[chat route error]', err)
+    return new Response(JSON.stringify({ error: String(err) }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    })
+  }
 }
