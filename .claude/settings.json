@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(New-Item -ItemType Directory -Force \"c:\\\\Users\\\\asdas\\\\OneDrive\\\\Desktop\\\\ai_supporter\\\\supabase\\\\migrations\")",
+      "PowerShell(New-Item -ItemType Directory -Force \"c:\\\\Users\\\\asdas\\\\OneDrive\\\\Desktop\\\\ai_supporter\\\\app\\\\lib\")",
+      "WebSearch",
+      "PowerShell(New-Item -ItemType Directory -Force \"C:\\\\Users\\\\asdas\\\\OneDrive\\\\Desktop\\\\ai_supporter\\\\app\\\\app\\\\api\\\\chat\")",
+      "PowerShell(New-Item -ItemType Directory -Force \"C:\\\\Users\\\\asdas\\\\OneDrive\\\\Desktop\\\\ai_supporter\\\\app\\\\app\\\\api\\\\upload\")",
+      "PowerShell(New-Item -ItemType Directory -Force \"C:\\\\Users\\\\asdas\\\\OneDrive\\\\Desktop\\\\ai_supporter\\\\app\\\\app\\\\api\\\\documents\")",
+      "PowerShell(New-Item -ItemType Directory -Force \"C:\\\\Users\\\\asdas\\\\OneDrive\\\\Desktop\\\\ai_supporter\\\\app\\\\components\")",
+      "PowerShell(git init)",
+      "PowerShell(git add .)",
+      "PowerShell(git rm -r --cached app/node_modules app/supabase/.temp app/.env.local app/next-env.d.ts 2>$null)"
+    ]
+  }
+}
