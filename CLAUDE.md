@@ -1,9 +1,14 @@
-# ARIA - 사내 AI 비서 프로젝트
+# ARIA / YAMI YAMI AI - 사내 AI 비서 프로젝트
 
 ## 프로젝트 개요
 
-테크솔루션즈 대표(1인)가 사내 문서를 업로드하고 자연어로 질문하면 AI가 즉시 답해주는 개인용 사내 AI 비서.
-코드네임: **ARIA** (AI Retrieval & Intelligence Assistant)
+테크솔루션즈 대표(1인)가 문서를 업로드하고 자연어로 질문하면 AI가 즉시 답해주는 개인용 AI 비서.
+하나의 앱에서 두 개의 워크스페이스를 상단 토글로 전환하여 사용.
+
+| 워크스페이스 | 이름 | 색상 | 용도 |
+|---|---|---|---|
+| `company` | ARIA | 파란색 | 테크솔루션즈 사내 업무 |
+| `yami` | YAMI | 보라색 | YAMI YAMI 개인 사업 |
 
 ## 기술 스택
 
@@ -12,13 +17,18 @@
 | 프레임워크 | Next.js 14.2 (App Router) |
 | 스타일 | Tailwind CSS |
 | 벡터 DB | Supabase pgvector |
-| 임베딩 | `@xenova/transformers` - `Xenova/multilingual-e5-small` (384차원) |
+| 임베딩 | Google Generative AI - `gemini-embedding-001` (3072차원, v1 API) |
 | 채팅 AI | Google Gemini API - `gemini-2.5-flash` |
 | 파일 파싱 | pdf-parse, mammoth, xlsx |
-| 배포 | Vercel (미정) |
+| 배포 | Vercel (Hobby 플랜) |
 | 인증 | 없음 (1인 사용) |
 
 ## 인프라 설정 완료
+
+### Vercel
+- **프로덕션 URL:** `https://app-ten-omega-n5i2q4i5i6.vercel.app`
+- **프로젝트명:** `app` (tkdtn8577-hashs-projects 팀)
+- **환경 변수:** Vercel 대시보드에 등록 완료
 
 ### Supabase
 - **Project ID:** `ypmnhjtevocbmwejpeeb`
@@ -27,79 +37,102 @@
 - **마이그레이션 적용 완료:**
   - `20260630000000_init.sql` — 초기 스키마
   - `20260701000000_fix_vector_search.sql` — HNSW 인덱스 교체 + 함수 재생성
+  - `20260702000000_update_embedding_dim_768.sql` — 임베딩 모델 교체 (384→3072차원), 인덱스 제거
+  - `20260702000001_add_workspace.sql` — workspace 컬럼 추가, 검색 함수 workspace 필터 추가
 
-### DB 스키마 (적용 완료)
+### DB 스키마 (현재 상태)
 ```sql
 -- pgvector 확장
--- documents: 파일 메타데이터
--- document_chunks: 텍스트 청크 + vector(384) 임베딩
---   인덱스: HNSW (vector_cosine_ops) — IVFflat은 소규모 데이터에서 검색 실패하여 교체
--- conversations: 대화 세션
+-- documents: 파일 메타데이터 + workspace ('company' | 'yami')
+-- document_chunks: 텍스트 청크 + vector(3072) 임베딩 (인덱스 없음 - 소규모라 sequential scan)
+-- conversations: 대화 세션 + workspace
 -- messages: 개별 메시지 (role: user | assistant)
--- match_document_chunks(): 벡터 유사도 검색 함수 (cosine, top-N)
+-- match_document_chunks(query_embedding, match_count, filter_workspace): workspace 필터 벡터 검색
 ```
 
-### 환경 변수 (`app/.env.local`)
+### 환경 변수 (`app/.env.local` + Vercel 등록 완료)
 ```
 NEXT_PUBLIC_SUPABASE_URL
 NEXT_PUBLIC_SUPABASE_ANON_KEY
-GOOGLE_API_KEY   ← Gemini API 키 (Google AI Studio에서 발급)
+GOOGLE_API_KEY   ← Gemini + Embedding API 키 (Google AI Studio)
 ```
 
 ## 디렉터리 구조
 
 ```
 ai_supporter/
+├── CLAUDE.md
+├── watch_folder.mjs            # 폴더 감시 스크립트 (자동 업로드)
+├── YAMI YAMI_ai/               # YAMI YAMI 문서 드롭 폴더 (자동 생성)
+├── 거래처목록.txt               # 회사 문서 예시
+├── 매출현황.csv
+├── 회의록_3월.txt
 ├── docs/
-│   └── PRD.md                  # 제품 요구사항 문서
+│   └── PRD.md
 ├── supabase/
-│   ├── config.toml             # Supabase CLI 설정
-│   └── migrations/
-│       └── 20260630000000_init.sql
+│   ├── config.toml
+│   └── migrations/             # 루트 migrations (app/과 동일 복사본)
 └── app/                        # Next.js 앱 루트
-    ├── .env.local              # 환경 변수 (gitignore)
-    ├── next.config.mjs         # webpack + experimental.serverComponentsExternalPackages 설정
+    ├── .env.local
+    ├── vercel.json             # 함수 타임아웃 설정
+    ├── next.config.mjs
     ├── lib/
-    │   ├── supabase.ts         # Supabase 클라이언트 싱글톤
-    │   └── embeddings.ts       # transformers.js 임베딩 (서버 전용)
+    │   ├── supabase.ts
+    │   └── embeddings.ts       # gemini-embedding-001 (v1 API)
     ├── app/
-    │   ├── layout.tsx          # PWA 메타데이터, 한국어 설정
-    │   ├── page.tsx            # 메인 페이지 (사이드바 + 채팅)
+    │   ├── layout.tsx
+    │   ├── page.tsx            # workspace 상태 관리, WorkspaceSwitcher 포함
     │   ├── globals.css
     │   └── api/
-    │       ├── chat/route.ts       # Gemini 스트리밍 답변 (POST)
-    │       ├── upload/route.ts     # 파일 파싱 + 임베딩 + 저장 (POST)
-    │       └── documents/route.ts  # 문서 목록/삭제 (GET, DELETE)
+    │       ├── chat/route.ts       # workspace별 시스템 프롬프트 + 검색
+    │       ├── upload/route.ts     # workspace 파라미터로 문서 저장
+    │       └── documents/route.ts  # workspace 필터 문서 목록/삭제
     ├── components/
-    │   ├── ChatInterface.tsx   # 채팅 UI (메시지 + 입력창 + 빠른 질문)
-    │   ├── Sidebar.tsx         # 대화 목록 사이드바
-    │   └── UploadModal.tsx     # 파일 업로드/관리 모달
+    │   ├── WorkspaceSwitcher.tsx  # 회사 AI ↔ YAMI YAMI 전환 토글
+    │   ├── ChatInterface.tsx      # workspace별 UI (색상, 이름, 빠른 질문)
+    │   ├── Sidebar.tsx            # workspace별 대화 목록
+    │   └── UploadModal.tsx        # workspace별 파일 관리
     └── public/
-        └── manifest.json       # PWA manifest
+        ├── icon.svg
+        └── manifest.json
 ```
 
 ## 핵심 흐름
 
 ### 채팅 흐름
-1. 사용자 질문 입력
-2. 클라이언트: Supabase에 conversations + user message 저장
-3. `POST /api/chat` 호출 — `{ question, history[] }` 전송
-4. 서버: 질문 임베딩 → HNSW 벡터 검색 (Top 5 청크) → Gemini `startChat(history)` + `sendMessageStream(question)`
-5. 스트리밍 응답을 클라이언트에서 실시간 표시 (타이핑 애니메이션 → 텍스트 점진적 렌더링)
-6. 클라이언트: Supabase에 assistant message 저장
-
-**멀티턴 대화:** 이전 메시지 전체를 `history` 배열로 서버에 전달 → Gemini가 맥락을 유지하며 답변
+1. 상단 토글로 워크스페이스 선택 (company / yami)
+2. 사용자 질문 입력
+3. 클라이언트: Supabase에 conversations(workspace) + user message 저장
+4. `POST /api/chat` 호출 — `{ question, history[], workspace }` 전송
+5. 서버: 질문 임베딩 → `match_document_chunks(embedding, 5, workspace)` → workspace별 시스템 프롬프트 → Gemini 스트리밍
+6. 클라이언트: 실시간 렌더링 → assistant message 저장
 
 ### 파일 업로드 흐름
-1. 사용자가 파일 선택 (드래그&드롭 또는 클릭)
-2. `POST /api/upload` 호출 → 서버에서 파싱 → `passage: {텍스트}` 형식으로 청킹 → 임베딩 → Supabase 저장
-3. 동일 파일명 재업로드 시 기존 데이터 자동 삭제 후 재저장
-4. 배치 크기: 5청크씩 처리
+1. UI에서 업로드 또는 `watch_folder.mjs` 자동 감지
+2. `POST /api/upload` — `{ file, workspace }` 전송
+3. 서버: 파싱 → 청킹(500자) → 임베딩(gemini-embedding-001) → `document_chunks` 저장 (workspace 포함)
+4. 동일 파일명+workspace 조합 재업로드 시 기존 데이터 덮어쓰기
+5. 배치 크기: 5청크씩 처리
 
-### 임베딩 규칙
-- 쿼리: `query: {질문텍스트}` 형식
-- 문서 청크: `passage: {청크텍스트}` 형식
-- multilingual-e5-small은 이 prefix 방식으로 동작
+### 폴더 자동 감시 (`watch_folder.mjs`)
+```bash
+node watch_folder.mjs
+```
+- `ai_supporter/` 루트에 파일 추가 → `workspace: company`로 업로드
+- `YAMI YAMI_ai/` 폴더에 파일 추가 → `workspace: yami`로 업로드
+- 지원 형식: `.txt`, `.csv`, `.pdf`, `.docx`, `.xlsx`
+- 업로드 대상: Vercel 프로덕션 API
+
+## 임베딩 모델 변경 이력
+
+| 시점 | 모델 | 차원 | 이유 |
+|------|------|------|------|
+| 초기 | `Xenova/multilingual-e5-small` | 384 | 로컬 실행 |
+| 현재 | `gemini-embedding-001` | 3072 | Vercel 서버리스 호환 (로컬 모델 다운로드 불가) |
+
+- SDK 호출 시 반드시 `{ apiVersion: 'v1' }` 옵션 필요 (기본값 v1beta에서는 404)
+- 이 API 키로 사용 가능한 임베딩 모델: `gemini-embedding-001`, `gemini-embedding-2`
+- HNSW 인덱스는 최대 2000차원 제한 → 3072차원이라 인덱스 없이 sequential scan 사용
 
 ## 개발 명령어
 
@@ -119,40 +152,48 @@ npx supabase link --project-ref ypmnhjtevocbmwejpeeb
 npx supabase db push   # 마이그레이션 적용
 ```
 
-## 구현 완료 기능 (PRD 기준)
+> `supabase/migrations/`는 `app/supabase/migrations/`에도 복사본 존재 (CLI 경로 이슈로 중복)
 
-| 기능 | PRD 항목 | 상태 |
-|------|----------|------|
-| 파일 업로드 (txt/csv/pdf/docx/xlsx) | F1 | ✅ |
-| 벡터 임베딩 + Supabase 저장 | F1 | ✅ |
-| 동일 파일 재업로드 시 덮어쓰기 | F1 | ✅ |
-| 자연어 채팅 (Gemini 스트리밍) | F2 | ✅ |
-| 멀티턴 대화 히스토리 (맥락 유지) | F2 | ✅ |
-| RAG (pgvector 검색 → AI 컨텍스트) | F2 | ✅ |
-| 빠른 질문 버튼 4개 | F2 | ✅ |
-| 마크다운 렌더링 | F2 | ✅ |
-| 채팅 UI 개선 (아바타, 타이핑 애니메이션, 시간 표시) | F2 | ✅ |
-| 대화 기록 자동 저장 | F3 | ✅ |
-| 대화 목록 사이드바 | F3 | ✅ |
-| 대화 삭제 | F3 | ✅ |
-| PWA manifest | F4 | ✅ |
-| 모바일 반응형 레이아웃 | F4 | ✅ |
-| 파일 목록 조회 + 삭제 | F5 | ✅ |
+## Vercel 재배포 명령어
+
+```bash
+cd app
+npx vercel --prod --token <vercel_token> --yes --scope tkdtn8577-hashs-projects
+```
+
+## 구현 완료 기능
+
+| 기능 | 상태 |
+|------|------|
+| 파일 업로드 (txt/csv/pdf/docx/xlsx) | ✅ |
+| 벡터 임베딩 + Supabase 저장 | ✅ |
+| 동일 파일 재업로드 시 덮어쓰기 | ✅ |
+| 자연어 채팅 (Gemini 스트리밍) | ✅ |
+| 멀티턴 대화 히스토리 (맥락 유지) | ✅ |
+| RAG (pgvector 검색 → AI 컨텍스트) | ✅ |
+| 빠른 질문 버튼 4개 (워크스페이스별) | ✅ |
+| 마크다운 렌더링 | ✅ |
+| 대화 기록 자동 저장 | ✅ |
+| 대화 목록 사이드바 | ✅ |
+| 대화 삭제 | ✅ |
+| PWA manifest + SVG 아이콘 | ✅ |
+| 모바일 반응형 레이아웃 | ✅ |
+| 파일 목록 조회 + 삭제 | ✅ |
+| **회사 AI / YAMI YAMI AI 워크스페이스 분리** | ✅ |
+| **폴더 감시 자동 업로드** | ✅ |
+| **Vercel 배포** | ✅ |
 
 ## 미구현 기능 (향후)
 
-| 기능 | PRD 항목 |
-|------|----------|
-| Google Drive 동기화 | F6 |
-| 답변 출처 파일 표시 | F7 |
-| 모바일 공유 기능 | F8 |
-| PWA 아이콘 이미지 파일 (icon-192.png, icon-512.png) | F4 |
+| 기능 |
+|------|
+| Google Drive 동기화 |
+| 답변 출처 파일 표시 |
+| 모바일 공유 기능 |
 
 ## 주의사항
 
-- `@xenova/transformers` 임베딩 모델은 첫 실행 시 다운로드로 1~2분 소요 (이후 캐시됨)
-- Gemini API 키(`GOOGLE_API_KEY`)는 `.env.local`에만 있고 클라이언트에 노출되지 않음
-- Supabase anon 키는 `NEXT_PUBLIC_` 접두사로 클라이언트에 노출 (RLS 미사용, 1인 전용 앱)
-- `supabase/migrations/` 폴더는 `app/supabase/migrations/`에도 복사본 존재 (CLI 경로 이슈로 중복)
-- IVFflat 인덱스는 데이터가 `lists × 39`행 미만이면 검색 실패 → HNSW로 교체 완료
-- Gemini 모델: `gemini-2.5-flash` 사용 (`gemini-1.5-flash`는 이 API 키 미지원, `gemini-2.0-flash`는 무료 할당량 0)
+- Gemini API 키: `gemini-1.5-flash` 미지원, `gemini-2.0-flash` 무료 할당량 0 → `gemini-2.5-flash` 사용
+- Supabase anon 키는 `NEXT_PUBLIC_` 접두사로 클라이언트 노출 (RLS 미사용, 1인 전용)
+- 임베딩 모델 변경 시 기존 벡터 데이터 전체 재업로드 필요
+- Vercel Hobby 플랜: 함수 타임아웃 최대 60초 (대용량 PDF는 제한될 수 있음)
