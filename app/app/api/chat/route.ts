@@ -10,17 +10,22 @@ interface HistoryItem {
   content: string
 }
 
+const SYSTEM_PROMPTS: Record<string, string> = {
+  company: '당신은 테크솔루션즈의 친근한 사내 AI 비서 ARIA입니다. 자연스럽게 대화하며, 아래 회사 문서를 참고해 한국어로 답변하세요. 문서에 없는 내용은 솔직하게 모른다고 말하고, 일반적인 질문에는 자유롭게 대화하세요.',
+  yami: '당신은 YAMI YAMI의 친근한 개인 사업 AI 비서 YAMI입니다. 자연스럽게 대화하며, 아래 사업 문서를 참고해 한국어로 답변하세요. 문서에 없는 내용은 솔직하게 모른다고 말하고, 일반적인 질문에는 자유롭게 대화하세요.',
+}
+
 export async function POST(req: NextRequest) {
   try {
-    const { question, history = [] }: { question: string; history: HistoryItem[] } = await req.json()
+    const { question, history = [], workspace = 'company' }: { question: string; history: HistoryItem[]; workspace: string } = await req.json()
 
-    // 관련 문서 청크 검색
     let context = ''
     try {
       const queryEmb = await embed(question)
       const { data: chunks, error: rpcError } = await supabase.rpc('match_document_chunks', {
         query_embedding: queryEmb,
         match_count: 5,
+        filter_workspace: workspace,
       })
       if (rpcError) throw new Error(`DB 오류: ${rpcError.message}`)
       console.log('[chunks]', chunks?.length, chunks?.[0]?.content?.slice(0, 50))
@@ -41,16 +46,13 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    const basePrompt = SYSTEM_PROMPTS[workspace] ?? SYSTEM_PROMPTS.company
     const systemInstruction = context
-      ? `당신은 테크솔루션즈의 친근한 사내 AI 비서 ARIA입니다. 자연스럽게 대화하며, 아래 회사 문서를 참고해 한국어로 답변하세요. 문서에 없는 내용은 솔직하게 모른다고 말하고, 일반적인 질문에는 자유롭게 대화하세요.\n\n[참고 문서]\n${context}`
-      : `당신은 테크솔루션즈의 친근한 사내 AI 비서 ARIA입니다. 자연스럽게 대화하세요. 문서 관련 질문이 들어오면 "아직 등록된 문서가 없어요. 왼쪽 메뉴에서 문서를 업로드해 주시면 도와드릴게요!"라고 안내하세요.`
+      ? `${basePrompt}\n\n[참고 문서]\n${context}`
+      : `${basePrompt} 문서 관련 질문이 들어오면 "아직 등록된 문서가 없어요. 파일을 업로드해 주시면 도와드릴게요!"라고 안내하세요.`
 
-    const model = genAI.getGenerativeModel({
-      model: 'gemini-2.5-flash',
-      systemInstruction,
-    })
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash', systemInstruction })
 
-    // 이전 대화 히스토리 변환 (Gemini 형식)
     const chatHistory = history.slice(0, -1).map((msg) => ({
       role: msg.role === 'assistant' ? 'model' : 'user',
       parts: [{ text: msg.content }],
@@ -70,9 +72,7 @@ export async function POST(req: NextRequest) {
       },
     })
 
-    return new Response(stream, {
-      headers: { 'Content-Type': 'text/plain; charset=utf-8' },
-    })
+    return new Response(stream, { headers: { 'Content-Type': 'text/plain; charset=utf-8' } })
   } catch (err) {
     console.error('[chat route error]', err)
     return new Response(JSON.stringify({ error: String(err) }), {

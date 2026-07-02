@@ -4,15 +4,24 @@ import { useState } from 'react'
 import Sidebar from '@/components/Sidebar'
 import ChatInterface from '@/components/ChatInterface'
 import UploadModal from '@/components/UploadModal'
+import WorkspaceSwitcher, { type Workspace } from '@/components/WorkspaceSwitcher'
 
 export default function Home() {
   const [conversationId, setConversationId] = useState<string | null>(null)
   const [showSidebar, setShowSidebar] = useState(false)
   const [showUpload, setShowUpload] = useState(false)
+  const [workspace, setWorkspace] = useState<Workspace>('company')
+
+  function handleWorkspaceChange(ws: Workspace) {
+    setWorkspace(ws)
+    setConversationId(null)
+  }
 
   function handleNew() {
     setConversationId(null)
   }
+
+  const isYami = workspace === 'yami'
 
   return (
     <div className="flex h-screen bg-gray-100">
@@ -20,6 +29,7 @@ export default function Home() {
       <div className="hidden md:flex md:w-64 flex-col">
         <Sidebar
           currentId={conversationId}
+          workspace={workspace}
           onSelect={setConversationId}
           onNew={handleNew}
         />
@@ -38,6 +48,7 @@ export default function Home() {
           <div className="absolute left-0 top-0 bottom-0 w-72 flex flex-col bg-white shadow-xl">
             <Sidebar
               currentId={conversationId}
+              workspace={workspace}
               onSelect={setConversationId}
               onNew={handleNew}
               onClose={() => setShowSidebar(false)}
@@ -63,28 +74,41 @@ export default function Home() {
             >
               ☰
             </button>
-            <h1 className="font-bold text-gray-800 text-lg">ARIA</h1>
-            <span className="text-xs text-gray-400 hidden sm:block">사내 AI 비서</span>
+            <h1 className={`font-bold text-lg ${isYami ? 'text-purple-700' : 'text-gray-800'}`}>
+              {isYami ? 'YAMI YAMI AI' : 'ARIA'}
+            </h1>
+            <span className="text-xs text-gray-400 hidden sm:block">
+              {isYami ? '개인 사업 AI 비서' : '사내 AI 비서'}
+            </span>
           </div>
-          <button
-            onClick={() => setShowUpload(true)}
-            className="md:hidden text-sm text-gray-500 hover:text-blue-600 transition-colors"
-          >
-            📁
-          </button>
+          <div className="flex items-center gap-2">
+            <WorkspaceSwitcher workspace={workspace} onChange={handleWorkspaceChange} />
+            <button
+              onClick={() => setShowUpload(true)}
+              className="md:hidden text-sm text-gray-500 hover:text-blue-600 transition-colors ml-1"
+            >
+              📁
+            </button>
+          </div>
         </header>
 
         {/* 채팅 */}
         <div className="flex-1 min-h-0">
           <ChatInterface
             conversationId={conversationId}
+            workspace={workspace}
             onConversationCreated={(id) => setConversationId(id)}
             onOpenUpload={() => setShowUpload(true)}
           />
         </div>
       </div>
 
-      {showUpload && <UploadModal onClose={() => setShowUpload(false)} />}
+      {showUpload && (
+        <UploadModal
+          workspace={workspace}
+          onClose={() => setShowUpload(false)}
+        />
+      )}
     </div>
   )
 }

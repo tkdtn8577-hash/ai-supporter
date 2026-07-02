@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import type { Workspace } from './WorkspaceSwitcher'
 
 interface DocItem {
   id: string
@@ -9,10 +10,16 @@ interface DocItem {
 }
 
 interface Props {
+  workspace: Workspace
   onClose: () => void
 }
 
-export default function UploadModal({ onClose }: Props) {
+const WORKSPACE_LABEL: Record<Workspace, string> = {
+  company: '🏢 회사 AI',
+  yami: '🌸 YAMI YAMI',
+}
+
+export default function UploadModal({ workspace, onClose }: Props) {
   const [docs, setDocs] = useState<DocItem[]>([])
   const [uploading, setUploading] = useState(false)
   const [status, setStatus] = useState('')
@@ -20,10 +27,10 @@ export default function UploadModal({ onClose }: Props) {
 
   useEffect(() => {
     loadDocs()
-  }, [])
+  }, [workspace])
 
   async function loadDocs() {
-    const res = await fetch('/api/documents')
+    const res = await fetch(`/api/documents?workspace=${workspace}`)
     const data = await res.json()
     if (Array.isArray(data)) setDocs(data)
   }
@@ -33,6 +40,7 @@ export default function UploadModal({ onClose }: Props) {
     setStatus(`"${file.name}" 처리 중...`)
     const form = new FormData()
     form.append('file', file)
+    form.append('workspace', workspace)
     const res = await fetch('/api/upload', { method: 'POST', body: form })
     const data = await res.json()
     if (data.success) {
@@ -55,20 +63,24 @@ export default function UploadModal({ onClose }: Props) {
     setDocs((prev) => prev.filter((d) => d.id !== id))
   }
 
+  const accentColor = workspace === 'yami' ? 'border-purple-400 bg-purple-50' : 'border-blue-400 bg-blue-50'
+
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-xl w-full max-w-md max-h-[80vh] flex flex-col shadow-xl">
         <div className="flex items-center justify-between p-4 border-b">
-          <h2 className="font-semibold text-gray-800">파일 관리</h2>
+          <div>
+            <h2 className="font-semibold text-gray-800">파일 관리</h2>
+            <p className="text-xs text-gray-400 mt-0.5">{WORKSPACE_LABEL[workspace]} 전용 문서</p>
+          </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
         </div>
 
-        {/* 업로드 영역 */}
         <div
           onDrop={handleDrop}
           onDragOver={(e) => e.preventDefault()}
           onClick={() => fileRef.current?.click()}
-          className="m-4 border-2 border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-colors"
+          className={`m-4 border-2 border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:${accentColor} transition-colors`}
         >
           <p className="text-2xl mb-2">📁</p>
           <p className="text-sm text-gray-600">클릭하거나 파일을 드래그하세요</p>
@@ -88,7 +100,6 @@ export default function UploadModal({ onClose }: Props) {
           </p>
         )}
 
-        {/* 등록 파일 목록 */}
         <div className="flex-1 overflow-y-auto px-4 pb-4">
           {docs.length === 0 ? (
             <p className="text-sm text-gray-400 text-center py-4">등록된 파일이 없습니다</p>
@@ -100,9 +111,7 @@ export default function UploadModal({ onClose }: Props) {
                     <p className="text-sm font-medium text-gray-700">{doc.filename}</p>
                     <p className="text-xs text-gray-400">{new Date(doc.created_at).toLocaleDateString('ko-KR')}</p>
                   </div>
-                  <button onClick={() => deleteDoc(doc.id)} className="text-gray-300 hover:text-red-500 transition-colors ml-3">
-                    🗑️
-                  </button>
+                  <button onClick={() => deleteDoc(doc.id)} className="text-gray-300 hover:text-red-500 transition-colors ml-3">🗑️</button>
                 </li>
               ))}
             </ul>

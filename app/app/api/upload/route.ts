@@ -51,25 +51,25 @@ async function parseFile(file: File): Promise<string> {
 export async function POST(req: NextRequest) {
   const formData = await req.formData()
   const file = formData.get('file') as File
+  const workspace = (formData.get('workspace') as string) || 'company'
+
   if (!file) return NextResponse.json({ error: '파일 없음' }, { status: 400 })
 
-  // 동일 파일명 기존 데이터 삭제
   const { data: existing } = await supabase
     .from('documents')
     .select('id')
     .eq('filename', file.name)
+    .eq('workspace', workspace)
     .single()
   if (existing) await supabase.from('documents').delete().eq('id', existing.id)
 
-  // 문서 레코드 생성
   const { data: doc, error } = await supabase
     .from('documents')
-    .insert({ filename: file.name, source: 'upload' })
+    .insert({ filename: file.name, source: 'upload', workspace })
     .select()
     .single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  // 텍스트 추출 → 청크 → 임베딩 → 저장
   const text = await parseFile(file)
   const chunks = chunkText(text)
 
