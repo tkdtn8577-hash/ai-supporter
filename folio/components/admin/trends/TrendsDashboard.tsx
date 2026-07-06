@@ -4,18 +4,16 @@ import { useState } from 'react'
 import type { MonitoredAccount, AccountSnapshot } from '@/lib/types'
 import CompetitorPanel from './CompetitorPanel'
 import HashtagPanel from './HashtagPanel'
-import TopPostsPanel from './TopPostsPanel'
 import HistoryChart from './HistoryChart'
 import InfluencerDiscovery from './InfluencerDiscovery'
 
-type Tab = 'competitor' | 'hashtag' | 'posts' | 'history' | 'discovery'
+type Tab = 'competitor' | 'hashtag' | 'history' | 'discovery'
 
 const TABS: { id: Tab; label: string }[] = [
-  { id: 'competitor', label: '경쟁사' },
-  { id: 'hashtag',    label: '해시태그' },
-  { id: 'posts',      label: '인기게시물' },
+  { id: 'competitor', label: '경쟁사 모니터링' },
+  { id: 'hashtag',    label: '해시태그 분석' },
   { id: 'history',    label: '히스토리' },
-  { id: 'discovery',  label: '인플루언서 발굴' },
+  { id: 'discovery',  label: '인플루언서 분석' },
 ]
 
 interface Props {
@@ -71,7 +69,6 @@ export default function TrendsDashboard({ hasApiKey, initialAccounts, initialSna
       <main className="max-w-7xl mx-auto px-4 py-5">
         {tab === 'competitor'  && <CompetitorPanel accounts={accounts} setAccounts={setAccounts} hasApiKey={hasApiKey} />}
         {tab === 'hashtag'     && <HashtagPanel accounts={accounts} hasApiKey={hasApiKey} />}
-        {tab === 'posts'       && <TopPostsPanel hasApiKey={hasApiKey} />}
         {tab === 'history'     && <HistoryChart accounts={accounts} initialSnapshots={initialSnapshots} />}
         {tab === 'discovery'   && <InfluencerDiscovery hasApiKey={hasApiKey} />}
       </main>

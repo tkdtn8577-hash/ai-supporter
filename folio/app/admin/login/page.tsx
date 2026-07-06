@@ -1,13 +1,11 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
 type Step = 'request' | 'verify'
 
 export default function LoginPage() {
-  const router = useRouter()
   const [step, setStep] = useState<Step>('request')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -20,7 +18,6 @@ export default function LoginPage() {
     setError('')
 
     const supabase = createClient()
-    // emailRedirectTo 없이 호출 → 6자리 OTP 코드를 이메일로 발송
     const { error } = await supabase.auth.signInWithOtp({
       email: EMAIL,
       options: { shouldCreateUser: false },
@@ -49,8 +46,7 @@ export default function LoginPage() {
     if (error) {
       setError('코드가 올바르지 않거나 만료되었습니다')
     } else {
-      router.push('/admin')
-      router.refresh()
+      window.location.href = '/admin'
     }
     setLoading(false)
   }
@@ -110,7 +106,7 @@ export default function LoginPage() {
             </button>
 
             <button
-              onClick={() => { setStep('request'); setCode(''); setError(''); }}
+              onClick={() => { setStep('request'); setCode(''); setError('') }}
               className="w-full text-zinc-500 text-sm hover:text-zinc-300 transition-colors py-1"
             >
               코드 재발송
